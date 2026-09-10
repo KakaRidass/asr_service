@@ -1,0 +1,119 @@
+# ============================================
+# 文件: docker-compose.yml
+# 功能: 一键启动完整开发/演示环境。
+#
+# 包含:
+#   - MySQL 8.0（数据持久化）
+#   - FastAPI 后端（自动执行迁移、健康检查）
+#
+# 使用方式:
+#   cp .env.example .env
+#   # 填入 DEEPSEEK_API_KEY（DATABASE_URL 已由下方覆盖）
+#   docker compose up -d --build
+#
+# 注意事项:
+#   - 仅用于本地开发/演示，生产环境请使用外部 MySQL
+#   - uploads/ 目录通过 volume 持久化，删除容器不丢失上传文件
+# ============================================
+services:
+
+  # ---------- MySQL 数据库 ----------
+  db:
+    image: mysql:8.0
+    container_name: recording_mysql
+    restart: unless-stopped
+    environment:
+      # 功能说明：初始化数据库名称（docker-entrypoint 会自动创建）
+      MYSQL_DATABASE: recording_db
+      # 功能说明：root 密码（生产环境应通过 secrets 管理）
+      MYSQL_ROOT_PASSWORD: recording_root_pass
+      # 功能说明：默认字符集（支持 emoji 等 Unicode 内容）
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    # 功能说明：MySQL 官方镜像的 docker-entrypoint 会自动执行 /docker-entrypoint-initdb.d/ 下的 .sql 文件
+    volumes:
+      # 初始化脚本（只在新卷首次启动时执行）
+      - ./backend/app/db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      # 数据持久化
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      # 功能说明：使用 mysqladmin ping 探测 MySQL 是否就绪（比 SELECT 1 更可靠）
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-precording_root_pass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - recording_net
+
+  # ---------- FastAPI 后端 ----------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recording_backend
+    restart: unless-stopped
+    # 功能说明：从 backend/.env 加载敏感配置（DEEPSEEK_API_KEY 等）
+    # 注意：下面的 environment 块会覆盖 .env 中的同名键（DATABASE_URL 必须覆盖成容器内服务名）
+    env_file:
+      - ./backend/.env
+    environment:
+      # 功能说明：覆盖 .env 中的 DATABASE_URL，指向 docker-compose 内的 MySQL 服务名
+      # 注意：docker compose 会自动创建 recording_net，backend 容器可通过 "db:3306" 访问 MySQL
+      DATABASE_URL: mysql+aiomysql://root:recording_root_pass@db:3306/recording_db
+      UPLOAD_DIR: /app/uploads
+      LOG_LEVEL: info
+      APP_ENV: dev
+    # 功能说明：uploads 目录通过 named volume 持久化，避免容器删除后上传文件丢失
+    volumes:
+      - uploads_data:/app/uploads
+      # 功能说明：日志目录也持久化，方便排查问题
+      - ./backend/logs:/app/logs
+    ports:
+      - "8003:8000"
+    # 功能说明：backend 必须在 MySQL healthcheck 通过后才启动（两层防护之一）
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # 功能说明：健康检查必须指向实际的 API 端点（/v1/health），而非纯静态路径
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - recording_net
+
+  # ---------- CLI 客户端（交互式菜单，按需启动）----------
+  # 注意：CLI 是交互式前台进程，不能用 `docker compose up -d`（会立即退出）。
+  # 启动方式见 cli/README.md：
+  #   docker compose --profile cli run --rm cli
+  cli:
+    profiles: ["cli"]
+    build:
+      context: .
+      dockerfile: cli/Dockerfile
+    environment:
+      # 通过 docker-compose 网络的服务名访问 backend
+      RECORDING_API_BASE: http://backend:8003
+    stdin_open: true   # 保持 stdin 打开
+    tty: true          # 分配伪终端（让 input() / 颜色正常）
+    networks:
+      - recording_net
+
+# ---------- 数据卷 ----------
+volumes:
+  # MySQL 数据持久化卷（删除容器不丢数据）
+  mysql_data:
+    driver: local
+  # 上传文件持久化卷
+  uploads_data:
+    driver: local
+
+# ---------- 网络 ----------
+networks:
+  recording_net:
+    driver: bridge

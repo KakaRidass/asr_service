@@ -1,0 +1,19 @@
+# backend 子模块专用的补充规则
+# 主体规则已在仓库根目录 .gitignore 中定义，
+# 这里只保留子目录特有的条目。
+
+# 旧版与构建产物
+backend/__pycache__/
+backend/app/__pycache__/
+backend/tests/__pycache__/
+
+# Python 缓存（虽然根 .gitignore 已覆盖，这里冗余一份兜底）
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 本地 SQLite 数据库文件
+data/
+*.db
+*.sqlite
+*.sqlite3

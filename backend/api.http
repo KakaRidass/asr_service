@@ -1,0 +1,33 @@
+# 录音转写服务 API 调试（VSCode REST Client / IntelliJ HTTP Client）
+
+@baseUrl = http://127.0.0.1:8000
+@contentType = application/json
+
+### 1. 健康检查
+GET {{baseUrl}}/v1/health
+
+### 2. 上传录音（指定本地音频文件）
+POST {{baseUrl}}/v1/recordings
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./sample.wav
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 3. 查询录音列表
+GET {{baseUrl}}/v1/recordings?page=1&page_size=20
+
+### 4. 查询录音详情
+GET {{baseUrl}}/v1/recordings/{{recordingId}}
+
+### 5. 查询任务状态
+GET {{baseUrl}}/v1/tasks/{{taskId}}
+
+### 6. 重试失败任务
+POST {{baseUrl}}/v1/tasks/{{taskId}}/retry
+
+### 7. 删除录音
+DELETE {{baseUrl}}/v1/recordings/{{recordingId}}

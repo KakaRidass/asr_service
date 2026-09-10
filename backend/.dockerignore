@@ -1,0 +1,45 @@
+# ============================================
+# 文件: backend/.dockerignore
+# 功能: Docker 构建时排除不必要的文件，减小构建上下文体积。
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 环境变量文件（敏感）
+.env
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 测试
+htmlcov/
+.coverage
+.pytest_cache/
+
+# 文档
+*.md
+!requirements.txt
+
+# Docker 相关（只构建 backend 时不需要）
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# 上传目录（容器内通过 volume 挂载）
+uploads/
+logs/
+*.log
